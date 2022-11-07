@@ -42,10 +42,16 @@ function HMC!(cpws::CPworkspace, epsilon, ns, acc, lp::LattParm)
 end
 
 function x_tangent!(mom, cpws::CPworkspace, lp::LattParm)
-    for i in 1:lp.iL[1]
-        for j in 1:lp.iL[2]
-            cpws.P_n .= Matrix(I, 2*lp.N, 2*lp.N) .- cpws.x[i,j,:]*transpose(cpws.x[i,j,:])
-            mom[i,j,:] .= cpws.P_n * mom[i,j,:]
+    x_tangent!(mom, cpws.P_n, cpws.x, cpws, lp)
+    return nothing
+end
+
+function x_tangent!(mom, P_n, x, cpws::CPworkspace, lp::LattParm)
+    for j in 1:lp.iL[1]
+        for i in 1:lp.iL[2]
+            @inbounds @views P_n .= Matrix(I, 2*lp.N, 2*lp.N) .- x[:,i,j]*transpose(x[:,i,j])
+            # @inbounds @views mom[:,i,j] .= P_n * mom[:,i,j]
+            @views mul!(mom[:,i,j], P_n, mom[:,i,j])
         end
     end
     return nothing
@@ -144,13 +150,13 @@ end
 
 function update_x!(x, mom_x, x_cp, epsilon, cpws::CPworkspace, lp::LattParm)
     x_cp .= x
-    for i in 1:lp.iL[1]
-        for j in 1:lp.iL[2]
-            @views abspi = sqrt(sum(abs2, mom_x[i,j,:]))
+    for j in 1:lp.iL[1]
+        for i in 1:lp.iL[2]
+            @views abspi = sqrt(sum(abs2, mom_x[:,i,j]))
             alpha = epsilon * abspi
-            @views x[i,j,:] .= cos(alpha) * x_cp[i,j,:] .+ sin(alpha) * mom_x[i,j,:] / abspi
-            @views mom_x[i,j,:] .= - abspi * sin(alpha) * x_cp[i,j,:] .+ cos(alpha) *
-                            mom_x[i,j,:]
+            @views x[:,i,j] .= cos(alpha) * x_cp[:,i,j] .+ sin(alpha) * mom_x[:,i,j] / abspi
+            @views mom_x[:,i,j] .= - abspi * sin(alpha) * x_cp[:,i,j] .+ cos(alpha) *
+                            mom_x[:,i,j]
         end
     end
     return nothing
