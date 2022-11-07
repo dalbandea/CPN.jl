@@ -30,17 +30,17 @@ struct CPworkspace{T, N1, N2}
     Gamma
     Lambda_block
     function CPworkspace(::Type{T}, lp::LattParm) where {T <: AbstractFloat}
-        x = Array{T, 3}(undef, lp.iL..., 2 * lp.N)
-        phi = Array{T, 3}(undef, lp.iL..., 2)
+        x = Array{T, 3}(undef, 2 * lp.N, lp.iL...)
+        phi = Array{T, 3}(undef, 2, lp.iL...)
         x_cp = similar(x)
         J_n = similar(x)
-        Lambda = Array{T, 5}(undef, lp.iL..., 2, 2*lp.N, 2*lp.N)
+        Lambda = Array{T, 5}(undef, 2*lp.N, 2*lp.N, 2, lp.iL...)
         frc_x = similar(x)
         frc_phi = similar(phi)
         I_N = Matrix(I, lp.N, lp.N)
         P_n = Array{T, 2}(undef, 2*lp.N, 2*lp.N)
         Gamma = kron(I_N, [0 -1; 1 0])
-        Lambda_block = Array{T,5}(undef, size(phi)..., 2, 2)
+        Lambda_block = Array{T,5}(undef, 2, 2, size(phi)...)
         return new{T, 3, 5}(T, x, phi, x_cp, J_n, Lambda, frc_x, frc_phi, I_N, P_n, Gamma, Lambda_block)
     end
 end
@@ -53,7 +53,7 @@ Normalizes the vector field `x` at every lattice point.
 function project_to_Sn!(x, lp::LattParm)
     for j in 1:lp.iL[1]
         for i in 1:lp.iL[2]
-            @views LinearAlgebra.normalize!(x[i,j,:])
+            @views LinearAlgebra.normalize!(x[:,i,j])
         end
     end
     return nothing
@@ -90,11 +90,12 @@ function fill_Lambda!(cpws::CPworkspace, lp::LattParm)
 end
 
 function fill_Lambda!(Lambda, Lambda_block, phi, I_N, cpws::CPworkspace, lp::LattParm)
-    Lambda_block .= cat( cos.(phi), sin.(phi), -sin.(phi), cos.(phi), dims=4 ) |> x -> reshape(x, (size(phi)..., 2, 2)) # beware column major! stores first in columns!
-    for i in 1:lp.iL[1]
-        for j in 1:lp.iL[2]
+    # Lambda_block .= cat( cos.(phi), sin.(phi), -sin.(phi), cos.(phi), dims=1 ) |> x -> reshape(x, (2, 2, size(phi)...)) # beware column major! stores first in columns!
+    Lambda_block .= cat( cos.(phi), sin.(phi), -sin.(phi), cos.(phi), dims=4) |> x -> permutedims(x, (4,1,2,3)) |> x -> reshape( x, (2,2,size(phi)...))
+    for j in 1:lp.iL[1]
+        for i in 1:lp.iL[2]
             for mu in 1:2
-                @views Lambda[i,j,mu,:,:] .= kron(I_N, Lambda_block[i,j,mu,:,:])
+                @views Lambda[:,:,mu,i,j] .= kron(I_N, Lambda_block[:,:,mu,i,j])
             end
         end
     end
@@ -113,16 +114,16 @@ function fill_Jn!(J_n, x, Lambda, cpws::CPworkspace, lp::LattParm)
             ju = ((j+1) - 1) % lp.iL[2] + 1
             id = ((i-1) - 1 + lp.iL[1]) % lp.iL[1] + 1
             jd = ((j-1) - 1 + lp.iL[2]) % lp.iL[2] + 1
-            @views J_n[i,j,:] .= J_n[i,j,:] .+ transpose(Lambda[i,j,1,:,:]) * x[iu,j,:]
-            @views J_n[i,j,:] .= J_n[i,j,:] .+ transpose(Lambda[i,j,2,:,:]) * x[i,ju,:]
-            @views J_n[i,j,:] .= J_n[i,j,:] .+ Lambda[id,j,1,:,:] * x[id,j,:]
-            @views J_n[i,j,:] .= J_n[i,j,:] .+ Lambda[i,jd,2,:,:] * x[i,jd,:]
+            @views J_n[:,i,j] .= J_n[:,i,j] .+ transpose(Lambda[:,:,1,i,j]) * x[:,iu,j]
+            @views J_n[:,i,j] .= J_n[:,i,j] .+ transpose(Lambda[:,:,2,i,j]) * x[:,i,ju]
+            @views J_n[:,i,j] .= J_n[:,i,j] .+ Lambda[:,:,1,id,j] * x[:,id,j]
+            @views J_n[:,i,j] .= J_n[:,i,j] .+ Lambda[:,:,2,i,jd] * x[:,i,jd]
             # Lines below would avoid memory allocation but execution time is
             # higher
-            # @views mult_add!(J_n[i,j,:], transpose(Lambda[i,j,1,:,:]), x[iu,j,:], lp)
-            # @views mult_add!(J_n[i,j,:], transpose(Lambda[i,j,2,:,:]), x[i,ju,:], lp)
-            # @views mult_add!(J_n[i,j,:], Lambda[i,jd,1,:,:], x[id,j,:], lp)
-            # @views mult_add!(J_n[i,j,:], Lambda[i,jd,2,:,:], x[i,jd,:], lp)
+            # @views mult_add!(J_n[:,i,j], transpose(Lambda[:,:,1,i,j]), x[:,iu,j], lp)
+            # @views mult_add!(J_n[:,i,j], transpose(Lambda[:,:,2,i,j]), x[:,i,ju], lp)
+            # @views mult_add!(J_n[:,i,j], Lambda[:,:,1,i,jd], x[:,id,j], lp)
+            # @views mult_add!(J_n[:,i,j], Lambda[:,:,2,i,jd], x[:,i,jd], lp)
         end
     end
     return nothing
@@ -131,7 +132,7 @@ end
 function mult_add!(vo, A, vi, lp::LattParm)
     for j in 1:2*lp.N
         for k in 1:2*lp.N
-            vo[j] += A[j,k] * vi[k]
+            @inbounds vo[j] += A[j,k] * vi[k]
         end
     end
 end
