@@ -51,9 +51,9 @@ end
 Normalizes the vector field `x` at every lattice point.
 """
 function project_to_Sn!(x, lp::LattParm)
-    for i in 1:lp.iL[1]
-        for j in 1:lp.iL[2]
-            @views x[i,j,:] .= x[i,j,:] / sqrt(dot(x[i,j,:], x[i,j,:]))
+    for j in 1:lp.iL[1]
+        for i in 1:lp.iL[2]
+            @views LinearAlgebra.normalize!(x[i,j,:])
         end
     end
     return nothing
@@ -117,9 +117,23 @@ function fill_Jn!(J_n, x, Lambda, cpws::CPworkspace, lp::LattParm)
             @views J_n[i,j,:] .= J_n[i,j,:] .+ transpose(Lambda[i,j,2,:,:]) * x[i,ju,:]
             @views J_n[i,j,:] .= J_n[i,j,:] .+ Lambda[id,j,1,:,:] * x[id,j,:]
             @views J_n[i,j,:] .= J_n[i,j,:] .+ Lambda[i,jd,2,:,:] * x[i,jd,:]
+            # Lines below would avoid memory allocation but execution time is
+            # higher
+            # @views mult_add!(J_n[i,j,:], transpose(Lambda[i,j,1,:,:]), x[iu,j,:], lp)
+            # @views mult_add!(J_n[i,j,:], transpose(Lambda[i,j,2,:,:]), x[i,ju,:], lp)
+            # @views mult_add!(J_n[i,j,:], Lambda[i,jd,1,:,:], x[id,j,:], lp)
+            # @views mult_add!(J_n[i,j,:], Lambda[i,jd,2,:,:], x[i,jd,:], lp)
         end
     end
     return nothing
+end
+
+function mult_add!(vo, A, vi, lp::LattParm)
+    for j in 1:2*lp.N
+        for k in 1:2*lp.N
+            vo[j] += A[j,k] * vi[k]
+        end
+    end
 end
 
 """
