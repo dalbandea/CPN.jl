@@ -30,6 +30,7 @@ function HMC!(cpws::CPworkspace, epsilon, ns, lp::LattParm)
         if (r > pacc) 
             cpws.x .= x_cp
             cpws.phi .= phi_cp
+            sync_fields!(cpws, lp)
             @info("    REJECT: Energy [inital: $hini; final: $hfin; difference: $(hfin-hini)]")
         else
             @info("    ACCEPT:  Energy [inital: $hini; final: $hfin; difference: $(hfin-hini)]")
