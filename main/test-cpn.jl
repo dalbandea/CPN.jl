@@ -3,9 +3,9 @@ Pkg.activate(".")
 using CPN
 
 # Theory parameters
-N = 2
-lsize = 10
-beta = 1.0
+N = 10
+lsize = 42
+beta = 0.7
 lp0 = LattParm(N, (lsize,lsize), beta)
 
 # Initialize CPN workspace
@@ -14,25 +14,35 @@ A0 = CPworkspace(Float64, lp0)
 randomize!(A0, lp0)
 sync_fields!(A0, lp0)
 gauge_frc!(A0, lp0)
+
 x_frc!(A0, lp0)
 action(A0, lp0)
 
 
 # HMC
-acc = Vector{Int64}()
 tau = 1.0
-ns = 20
+ns = 62
 epsilon = tau / ns
 
 
-@time HMC!(A0, epsilon, ns, acc, lp0)
+@time HMC!(A0, epsilon, ns, lp0)
 
-for i in 1:10000
-    HMC!(A0, epsilon, ns, acc, lp0)
+for i in 1:100000
+    dH = HMC!(A0, epsilon, ns, lp0)
+    S = action(A0, lp0)
+
+    global io_stat = open("test_output.txt", "a")
+    write(io_stat, "$(S),$(dH)\n")
+    close(io_stat)
 end
 
-# Profiling
 
+# Reversibility
+
+CPN.reversibility!(A0, epsilon, ns, lp0)
+
+
+# Profiling
 
 struct testruct
     x::Float64
@@ -59,14 +69,16 @@ A2 = deepcopy(A0)
 
 S = action(A0, lp0)
 
-ϵ = 0.00001
+ϵ = 0.000001
 
 A2.phi[2,2,2] += ϵ
 sync_fields!(A2, lp0)
 S2 = action(A2, lp0)
+
 (S2 - S)/ϵ
 
 gauge_frc!(A0, lp0)
+
 A0.frc_phi[2,2,2]
 
 

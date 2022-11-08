@@ -1,5 +1,5 @@
 
-function HMC!(cpws::CPworkspace, epsilon, ns, acc, lp::LattParm)
+function HMC!(cpws::CPworkspace, epsilon, ns, lp::LattParm)
     x_cp = copy(cpws.x)
     phi_cp = copy(cpws.phi)
 
@@ -23,22 +23,22 @@ function HMC!(cpws::CPworkspace, epsilon, ns, acc, lp::LattParm)
     sync_fields!(cpws, lp)
     hfin = Hamiltonian(mom_x, mom_phi, cpws, lp)
 
-    println("ΔH = ", hfin - hini)
-    pacc = exp(-(hfin-hini))
+    dH = hfin - hini
+    pacc = exp(-dH)
     if (pacc < 1.0)
         r = rand()
-        if (pacc > r) 
-            push!(acc, 1)
-        else
+        if (r > pacc) 
             cpws.x .= x_cp
             cpws.phi .= phi_cp
-            push!(acc, 0)
+            @info("    REJECT: Energy [inital: $hini; final: $hfin; difference: $(hfin-hini)]")
+        else
+            @info("    ACCEPT:  Energy [inital: $hini; final: $hfin; difference: $(hfin-hini)]")
         end
     else
-        push!(acc, 1)
+        @info("    ACCEPT:  Energy [inital: $hini; final: $hfin; difference: $(hfin-hini)]")
     end
 
-    return nothing
+    return dH
 end
 
 function x_tangent!(mom, cpws::CPworkspace, lp::LattParm)
