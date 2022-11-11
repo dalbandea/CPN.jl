@@ -51,8 +51,7 @@ function x_tangent!(mom, P_n, x, cpws::CPworkspace, lp::LattParm)
     for j in 1:lp.iL[1]
         for i in 1:lp.iL[2]
             @inbounds @views P_n .= Matrix(I, 2*lp.N, 2*lp.N) .- x[:,i,j]*transpose(x[:,i,j])
-            # @inbounds @views mom[:,i,j] .= P_n * mom[:,i,j]
-            @views mul!(mom[:,i,j], P_n, mom[:,i,j])
+            @inbounds @views mom[:,i,j] .= P_n * mom[:,i,j]
         end
     end
     return nothing
@@ -128,8 +127,8 @@ function update_momenta!(mom_x, mom_phi, cpws::CPworkspace, epsilon, lp::LattPar
 end
 
 function update_momenta!(mom_x, mom_phi, frc_x, frc_phi, epsilon, cpws::CPworkspace, lp::LattParm)
-    mom_x .= mom_x .+ epsilon .* frc_x
     mom_phi .= mom_phi .+ epsilon .* frc_phi
+    mom_x .= mom_x .+ epsilon .* frc_x
     return nothing
 end
 
@@ -144,7 +143,7 @@ function update_fields!(x, phi, mom_x, mom_phi, x_cp, epsilon, cpws::CPworkspace
 
     # Update x field
     update_x!(x, mom_x, x_cp, epsilon, cpws, lp)
-    project_to_Sn!(x, lp) # project back to Sn, although it should be projected already
+    # # project_to_Sn!(x, lp) # project back to Sn, although it should be projected already
     return nothing
 end
 
