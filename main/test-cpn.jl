@@ -3,15 +3,16 @@ Pkg.activate(".")
 using CPN
 
 # Theory parameters
-N = 10
-lsize = 42
-beta = 0.7
+N = 2
+lsize = 27
+beta = 1.3
 lp0 = LattParm(N, (lsize,lsize), beta)
 
 # Initialize CPN workspace
 A0 = CPworkspace(Float64, lp0)
 
 randomize!(A0, lp0)
+
 sync_fields!(A0, lp0)
 gauge_frc!(A0, lp0)
 
@@ -21,21 +22,38 @@ action(A0, lp0)
 
 # HMC
 tau = 1.0
-ns = 62
+ns = 20
 epsilon = tau / ns
 
 
 @time HMC!(A0, epsilon, ns, lp0)
 
+action(A0, lp0)
+
+for i in 1:1000
+    dH = HMC!(A0, epsilon, ns, lp0)
+end
+
+
 for i in 1:100000
+    println(i)
     dH = HMC!(A0, epsilon, ns, lp0)
     S = action(A0, lp0)
 
-    global io_stat = open("test_output.txt", "a")
+    global io_stat = open("test_output_good2.txt", "a")
     write(io_stat, "$(S),$(dH)\n")
     close(io_stat)
 end
 
+# Orthogonality
+
+res = 0.0
+for i in 1:lp0.iL[1]
+    for j in 1:lp0.iL[1]
+        res += transpose(A0.x[:,j,i])*A0.x[:,j,i]
+    end
+end
+println(res/lsize^2)
 
 # Reversibility
 
